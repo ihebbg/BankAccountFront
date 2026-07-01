@@ -1,0 +1,36 @@
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+      font-family: Arial, sans-serif;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+
+    .operation-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .operation-list li {
+      padding: 8px 12px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .operation-list li:last-child {
+      border-bottom: none;
+    }

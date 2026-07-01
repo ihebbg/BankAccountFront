@@ -1,0 +1,17 @@
+<div class="container">
+  <h2>Accounts</h2>
+  <div class="list-header">
+    <span>Account List</span>
+    <app-button-add [data]="link"></app-button-add>
+  </div>
+  <ul class="account-list">
+    @for (account of $accounts$ | async; track $index) {
+    <li>{{ account.balance }} {{ account.currency }}</li>
+    <li>{{ account.created  | date:"MMM dd, yyyy 'at' hh:mm a"  }}</li>
+    <li>{{ status[account.status] }}</li>
+    <li>{{ account.accountType }}</li>
+    <li>{{ account.nameCustomer }}</li>
+
+    }
+  </ul>
+</div>

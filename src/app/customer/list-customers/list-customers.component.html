@@ -1,0 +1,13 @@
+<div class="container">
+  <h2>Customers</h2>
+  <div class="list-header">
+    <span>Customers List</span>
+    <app-button-add [data]="link"></app-button-add>
+  </div>
+  <ul class="customer-list">
+    @for (customer of $customers$ | async; track $index) {
+    <li>{{ customer.name }} {{ customer.email }}</li>
+
+    }
+  </ul>
+</div>

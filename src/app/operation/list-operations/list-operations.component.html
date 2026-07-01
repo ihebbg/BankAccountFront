@@ -1,0 +1,18 @@
+<div class="container">
+  <h2>Operations</h2>
+  <div class="list-header">
+    <span>Operation List</span>
+    <app-button-add [data]="link"></app-button-add>
+  </div>
+  <ul class="operation-list">
+    @for (operation of $operations$ | async; track $index) {
+    <li>
+      {{ operation.date | date : "MMM dd, yyyy 'at' hh:mm a" }}
+      {{ operation.type }}
+    </li>
+    <li>{{ operation.nameCustomer }}</li>
+    <li>{{ operation.accountType }}</li>
+
+    }
+  </ul>
+</div>
