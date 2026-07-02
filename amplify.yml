@@ -4,6 +4,8 @@ frontend:
     preBuild:
       commands:
         - npm ci
+        - test -n "$API_URL" || (echo "API_URL is missing. Set it in Amplify environment variables." && exit 1)
+        - printf "export const environment = { production: true, apiUrl: '%s' };\n" "$API_URL" > src/environments/environment.prod.ts
     build:
       commands:
         - npm run build
