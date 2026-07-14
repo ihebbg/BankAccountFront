@@ -5,11 +5,10 @@ import { AsyncPipe, DatePipe } from '@angular/common';
 import { AccountStatus } from '../../enums/AccountStatus';
 
 @Component({
-  selector: 'app-list-accounts',
-  standalone: true,
-  imports: [ButtonAddComponent, AsyncPipe,DatePipe],
-  templateUrl: './list-accounts.component.html',
-  styleUrl: './list-accounts.component.css'
+    selector: 'app-list-accounts',
+    imports: [ButtonAddComponent, AsyncPipe, DatePipe],
+    templateUrl: './list-accounts.component.html',
+    styleUrl: './list-accounts.component.css'
 })
 export class ListAccountsComponent {
   constructor(private _accountService: AccountService) { }

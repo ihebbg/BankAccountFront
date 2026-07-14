@@ -4,12 +4,10 @@ import { OperationService } from '../../services/operation.service';
 import { AsyncPipe, DatePipe } from '@angular/common';
 
 @Component({
-
-  selector: 'app-list-operations',
-  standalone: true,
-  imports: [ButtonAddComponent,AsyncPipe,DatePipe],
-  templateUrl: './list-operations.component.html',
-  styleUrl: './list-operations.component.css'
+    selector: 'app-list-operations',
+    imports: [ButtonAddComponent, AsyncPipe, DatePipe],
+    templateUrl: './list-operations.component.html',
+    styleUrl: './list-operations.component.css'
 })
 export class ListOperationsComponent {
   constructor(private _operationService: OperationService) { }
