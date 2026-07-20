@@ -1,16 +1,18 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { ButtonAddComponent } from '../../shared/button-add/button-add.component';
 import { OperationService } from '../../services/operation.service';
-import { AsyncPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 
 @Component({
     selector: 'app-list-operations',
-    imports: [ButtonAddComponent, AsyncPipe, DatePipe],
+    imports: [ButtonAddComponent, DatePipe],
     templateUrl: './list-operations.component.html',
     styleUrl: './list-operations.component.css'
 })
 export class ListOperationsComponent {
-  constructor(private _operationService: OperationService) { }
-  link: string = "/home/add-operation"
-  $operations$ = this._operationService.getOperation();
+  private readonly operationService = inject(OperationService);
+
+  readonly link = '/home/add-operation';
+  readonly operations = toSignal(this.operationService.getOperation(), { initialValue: [] });
 }

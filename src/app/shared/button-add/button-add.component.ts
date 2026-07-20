@@ -1,5 +1,5 @@
-import { Component, Input } from '@angular/core';
-import { Router, RouterLink } from "@angular/router";
+import { Component, input } from '@angular/core';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-button-add',
@@ -10,8 +10,10 @@ import { Router, RouterLink } from "@angular/router";
 })
 export class ButtonAddComponent {
   constructor(private router: Router) { }
-  @Input() data: string = "";
+
+  readonly data = input.required<string>();
+
   add() {
-    this.router.navigateByUrl(this.data);
+    this.router.navigateByUrl(this.data());
   }
 }

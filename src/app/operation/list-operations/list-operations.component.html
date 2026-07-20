@@ -5,7 +5,7 @@
     <app-button-add [data]="link"></app-button-add>
   </div>
   <ul class="operation-list">
-    @for (operation of $operations$ | async; track $index) {
+    @for (operation of operations(); track $index) {
     <li>
       {{ operation.date | date : "MMM dd, yyyy 'at' hh:mm a" }}
       {{ operation.type }}
