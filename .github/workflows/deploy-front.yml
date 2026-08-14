@@ -35,8 +35,17 @@ jobs:
           node -v
           npm -v
 
+      - name: Free disk space before install
+        shell: powershell
+        run: |
+          if (Test-Path node_modules) {
+            Remove-Item -Recurse -Force node_modules
+          }
+          npm cache clean --force
+          Write-Host "Disk cleanup completed."
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Build Angular app
         run: npm run build -- --configuration production
