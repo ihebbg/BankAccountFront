@@ -84,10 +84,25 @@ jobs:
           Set-Content -Path $env:MANIFEST -Value $updatedManifest -NoNewline
           kubectl apply -f $env:MANIFEST
           kubectl rollout restart "deployment/$env:DEPLOYMENT"
-          kubectl rollout status "deployment/$env:DEPLOYMENT" --timeout=180s
+          kubectl rollout status "deployment/$env:DEPLOYMENT" --timeout=300s
 
       - name: Show deployed resources
         shell: powershell
         run: |
           kubectl get pods -l app=bankaccount
           kubectl get service $env:SERVICE
+
+      - name: Debug deployment on failure
+        if: failure()
+        shell: powershell
+        run: |
+          Write-Host "Deployment Details:"
+          kubectl describe deployment $env:DEPLOYMENT
+          Write-Host "`nPod Details:"
+          kubectl get pods -l app=bankaccount -o wide
+          Write-Host "`nPod Logs (last 100 lines):"
+          $pods = kubectl get pods -l app=bankaccount -o name
+          foreach ($pod in $pods) {
+            Write-Host "`n--- Logs for $pod ---"
+            kubectl logs $pod --tail=100
+          }
