@@ -6,73 +6,83 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: bankaccount-front-docker-desktop
+  cancel-in-progress: true
+
 env:
   IMAGE_NAME: bankaccount-front
-  REGISTRY: docker.io
+  DEPLOYMENT: bankaccount-kube-deployment-front
+  SERVICE: bankaccount-front-service
+  MANIFEST: front-deployment.yaml
   KUBECONFIG: ${{ secrets.KUBECONFIG }}
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
+    name: Build and deploy Angular front to Docker Desktop Kubernetes
+    runs-on: self-hosted
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
 
-      - name: Build Docker image
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Angular app
+        run: npm run build -- --configuration production
+
+      - name: Check Docker Desktop and Kubernetes
+        shell: powershell
         run: |
-          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
-          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
+          docker version
+          kubectl version --client=true
+          $context = kubectl config current-context
+          if ($context -ne 'docker-desktop') {
+            throw "Le contexte Kubernetes doit être 'docker-desktop'; actuel : $context"
+          }
 
-      - name: Load image into Docker Desktop
+      - name: Validate kubeconfig secret
+        if: ${{ env.KUBECONFIG == '' }}
+        shell: powershell
         run: |
-          docker save ${{ env.IMAGE_NAME }}:${{ github.sha }} | docker load
+          Write-Host "KUBECONFIG is empty. Skipping Kubernetes deployment."
 
-      - name: Update deployment image tag
+      - name: Build image
+        if: ${{ env.KUBECONFIG != '' }}
+        shell: powershell
         run: |
-          sed -i "s|image: ${{ env.IMAGE_NAME }}:.*|image: ${{ env.IMAGE_NAME }}:${{ github.sha }}|g" front-deployment.yaml
-          echo "Updated image tag in front-deployment.yaml:"
-          grep "image:" front-deployment.yaml
+          $image = "$env:IMAGE_NAME`:$env:GITHUB_SHA"
+          docker build --tag $image .
 
-      - name: Commit updated deployment file (GitOps)
+      - name: Deploy image
+        if: ${{ env.KUBECONFIG != '' }}
+        shell: powershell
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action [CI/CD]"
-          git add front-deployment.yaml
-          git commit -m "chore: Deploy bankaccount-front:${{ github.sha }}" || echo "No changes to commit"
-          git push origin ${{ github.ref }}
+          $image = "$env:IMAGE_NAME`:$env:GITHUB_SHA"
+          $manifest = Get-Content -Raw $env:MANIFEST
+          $updatedManifest = $manifest -replace '(?m)^([ \t]*image:[ \t]*)\S+[ \t]*\r?$', "`${1}$image"
 
-      - name: Skip Kubernetes deployment
-        if: ${{ secrets.KUBECONFIG == '' }}
+          if ($updatedManifest -eq $manifest) {
+            throw "Aucune image n'a été trouvée dans $env:MANIFEST."
+          }
+
+          Set-Content -Path $env:MANIFEST -Value $updatedManifest -NoNewline
+          kubectl apply -f $env:MANIFEST
+          kubectl rollout status "deployment/$env:DEPLOYMENT" --timeout=180s
+
+      - name: Show deployed resources
+        if: ${{ env.KUBECONFIG != '' }}
+        shell: powershell
         run: |
-          echo "KUBECONFIG secret is not set. Skipping Kubernetes deployment."
-
-      - name: Configure Kubernetes access
-        if: ${{ secrets.KUBECONFIG != '' }}
-        run: |
-          mkdir -p "$HOME/.kube"
-          rm -f "$HOME/.kube/config"
-          printf '%s' "$KUBECONFIG" > "$HOME/.kube/config"
-          chmod 600 "$HOME/.kube/config"
-
-          kubectl config current-context
-          kubectl cluster-info
-
-      - name: Deploy to Kubernetes
-        if: ${{ secrets.KUBECONFIG != '' }}
-        run: |
-          kubectl apply --validate=false -f front-deployment.yaml
-          kubectl rollout status deployment/bankaccount-kube-deployment-front -n default
-
-      - name: Get service info
-        if: ${{ secrets.KUBECONFIG != '' }}
-        run: |
-          echo "Service deployed at:"
-          kubectl get svc bankaccount-front-service -o wide
           kubectl get pods -l app=bankaccount
+          kubectl get service $env:SERVICE
