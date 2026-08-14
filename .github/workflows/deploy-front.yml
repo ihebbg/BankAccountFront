@@ -48,15 +48,15 @@ jobs:
           git commit -m "chore: Deploy bankaccount-front:${{ github.sha }}" || echo "No changes to commit"
           git push origin ${{ github.ref }}
 
+      - name: Skip Kubernetes deployment
+        if: ${{ secrets.KUBECONFIG == '' }}
+        run: |
+          echo "KUBECONFIG secret is not set. Skipping Kubernetes deployment."
+
       - name: Configure Kubernetes access
+        if: ${{ secrets.KUBECONFIG != '' }}
         run: |
           mkdir -p "$HOME/.kube"
-
-          if [ -z "${KUBECONFIG:-}" ]; then
-            echo "KUBECONFIG secret is not set. Skipping Kubernetes deployment."
-            exit 0
-          fi
-
           rm -f "$HOME/.kube/config"
           printf '%s' "$KUBECONFIG" > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
@@ -65,11 +65,13 @@ jobs:
           kubectl cluster-info
 
       - name: Deploy to Kubernetes
+        if: ${{ secrets.KUBECONFIG != '' }}
         run: |
           kubectl apply --validate=false -f front-deployment.yaml
           kubectl rollout status deployment/bankaccount-kube-deployment-front -n default
 
       - name: Get service info
+        if: ${{ secrets.KUBECONFIG != '' }}
         run: |
           echo "Service deployed at:"
           kubectl get svc bankaccount-front-service -o wide
