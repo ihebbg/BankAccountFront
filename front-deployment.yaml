@@ -17,7 +17,7 @@ spec:
       containers:
         - name: bankaccount-front
           # Build and load this image into Docker Desktop with the command in README.
-          image: bankaccount-front:v1
+          image: bankaccount-front:a7525061bb64d8f8eea27d078ad0a044ffd67f9e
           imagePullPolicy: Always
           ports:
             - name: http
