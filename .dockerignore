@@ -1,0 +1,10 @@
+.angular
+.git
+.gitignore
+.vscode
+dist
+node_modules
+npm-debug.log*
+Dockerfile*
+README.md
+Guide-Deploiement-Angular-EC2.pdf

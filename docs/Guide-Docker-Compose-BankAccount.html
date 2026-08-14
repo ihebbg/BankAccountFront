@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Guide Docker Compose — BankAccount</title>
+  <style>
+    @page { size: A4; margin: 17mm 16mm 18mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; color: #172033; font-size: 10.5pt; line-height: 1.48; margin: 0; }
+    h1 { color: #123b68; font-size: 25pt; margin: 0 0 8px; }
+    h2 { color: #145c8e; font-size: 17pt; border-bottom: 2px solid #d9e7f2; padding-bottom: 5px; margin-top: 25px; break-after: avoid; }
+    h3 { color: #284f71; font-size: 12.5pt; margin: 18px 0 7px; break-after: avoid; }
+    p, li { orphans: 3; widows: 3; }
+    code { font-family: Consolas, monospace; background: #edf3f7; padding: 1px 4px; border-radius: 3px; }
+    pre { background: #102338; color: #eff7ff; padding: 11px 13px; border-radius: 6px; font: 9pt/1.42 Consolas, monospace; white-space: pre-wrap; break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0 15px; break-inside: avoid; }
+    th, td { border: 1px solid #bed0df; padding: 7px; vertical-align: top; }
+    th { background: #e6f0f7; color: #173d5c; text-align: left; }
+    .cover { height: 245mm; display: flex; flex-direction: column; justify-content: center; text-align: center; page-break-after: always; }
+    .cover .tag { color: #1878b8; font-size: 13pt; letter-spacing: 1px; }
+    .cover .sub { color: #53677a; font-size: 13pt; margin-top: 12px; }
+    .box { background: #eef7fc; border-left: 5px solid #1684c5; padding: 10px 13px; margin: 12px 0; break-inside: avoid; }
+    .warn { background: #fff6e5; border-left-color: #e89c15; }
+    .diagram { text-align: center; font: bold 11pt/1.7 Consolas, monospace; background: #f3f7fa; border: 1px solid #cbdce8; padding: 14px; break-inside: avoid; }
+    .page { page-break-before: always; }
+    .small { font-size: 9pt; color: #526476; }
+    a { color: #126fa9; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="tag">GUIDE PRATIQUE</div>
+    <h1>Docker Compose et compose.yaml</h1>
+    <div class="sub">Frontend Angular + API ASP.NET Core<br>Projet BankAccount</div>
+    <p class="small">Fonctionnement • syntaxe YAML • commandes • Docker Hub • dépannage</p>
+  </section>
+
+  <h2>1. Docker Compose, c’est quoi ?</h2>
+  <p>Docker Compose permet de décrire et gérer plusieurs conteneurs dans un seul fichier, généralement <code>compose.yaml</code>. Un <code>Dockerfile</code> explique comment construire une image ; <code>compose.yaml</code> explique comment les images et conteneurs fonctionnent ensemble.</p>
+  <table><tr><th>Élément</th><th>Rôle</th></tr>
+    <tr><td>Dockerfile</td><td>Recette de construction d’une image.</td></tr>
+    <tr><td>Image</td><td>Modèle immuable contenant l’application et ses dépendances.</td></tr>
+    <tr><td>Conteneur</td><td>Instance en cours d’exécution d’une image.</td></tr>
+    <tr><td>compose.yaml</td><td>Description des services, ports, variables, réseaux et volumes.</td></tr>
+    <tr><td>Projet Compose</td><td>Groupe logique de tous les conteneurs et réseaux de l’application.</td></tr>
+  </table>
+  <div class="box">Docker Desktop peut afficher une ligne <strong>bankaccount</strong> contenant deux lignes enfants. Ce n’est pas un conteneur avec des sous-conteneurs : c’est un groupe visuel contenant deux conteneurs indépendants.</div>
+
+  <h2>2. Architecture du projet</h2>
+  <pre>C:\Users\ihebb\source\repos\
+├── BankAccountFront\
+│   ├── Dockerfile
+│   ├── compose.yaml
+│   ├── .env
+│   └── nginx.conf
+└── BankAccountServices\
+    └── Dockerfile</pre>
+  <div class="diagram">Navigateur → localhost:8080 → frontend (Nginx:80)<br>                                      ↓ /api<br>                              backend (ASP.NET:5000)<br><br>Accès direct : localhost:5000 → backend:5000</div>
+  <p>Compose crée automatiquement un réseau privé. Les services se trouvent par leur nom : le frontend peut appeler <code>http://backend:5000</code>. En revanche, le navigateur de l’utilisateur ne connaît pas le nom Docker <code>backend</code> ; Nginx sert donc de proxy pour les requêtes <code>/api</code>.</p>
+
+  <h2>3. Exemple complet de compose.yaml</h2>
+  <pre>name: bankaccount
+
+services:
+  backend:
+    image: ${DOCKERHUB_USERNAME}/bankaccount-services:${IMAGE_TAG:-latest}
+    build:
+      context: ../BankAccountServices
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DBConnection: ${DB_CONNECTION}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      S3__BucketName: ${S3_BUCKET_NAME:-lambdacomp}
+      S3__Region: ${S3_REGION:-us-east-1}
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/bankaccount-front:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped</pre>
+  <div class="warn box"><strong>Cohérence des noms :</strong> si le service s’appelle <code>backend</code>, Nginx doit utiliser <code>proxy_pass http://backend:5000;</code>. S’il s’appelle <code>api</code>, Nginx doit utiliser <code>http://api:5000</code>.</div>
+
+  <h2>4. Explication de chaque clé</h2>
+  <table><tr><th>Clé</th><th>Référence / effet</th></tr>
+    <tr><td><code>name</code></td><td>Nom du projet et du groupe dans Docker Desktop. Sert aussi de préfixe aux ressources.</td></tr>
+    <tr><td><code>services</code></td><td>Liste des applications gérées par Compose.</td></tr>
+    <tr><td><code>backend</code>, <code>frontend</code></td><td>Noms choisis pour les services. Ils servent dans les commandes et comme noms DNS sur le réseau interne.</td></tr>
+    <tr><td><code>image</code></td><td>Nom et tag de l’image locale ou Docker Hub : <code>utilisateur/image:tag</code>.</td></tr>
+    <tr><td><code>build</code></td><td>Demande de construire l’image avec un Dockerfile.</td></tr>
+    <tr><td><code>context</code></td><td>Dossier envoyé au moteur Docker. <code>.</code> = dossier actuel ; <code>..</code> = dossier parent.</td></tr>
+    <tr><td><code>dockerfile</code></td><td>Nom du Dockerfile relatif au contexte de build.</td></tr>
+    <tr><td><code>environment</code></td><td>Variables injectées dans le conteneur.</td></tr>
+    <tr><td><code>ports</code></td><td>Publication sous la forme <code>port_machine:port_conteneur</code>.</td></tr>
+    <tr><td><code>depends_on</code></td><td>Démarre le service référencé avant l’autre. Ne garantit pas que l’application soit déjà prête.</td></tr>
+    <tr><td><code>restart</code></td><td>Politique de redémarrage. <code>unless-stopped</code> redémarre sauf arrêt manuel.</td></tr>
+  </table>
+
+  <h2>5. Comprendre la syntaxe YAML</h2>
+  <ul>
+    <li>L’indentation crée la hiérarchie. Utiliser des espaces, pas des tabulations.</li>
+    <li><code>:</code> associe une clé à une valeur : <code>name: bankaccount</code>.</li>
+    <li><code>-</code> ajoute un élément à une liste, par exemple un port.</li>
+    <li><code>.</code> représente le dossier courant et <code>..</code> son parent.</li>
+    <li><code>${JWT_KEY}</code> lit une variable depuis l’environnement ou le fichier <code>.env</code>.</li>
+    <li><code>${IMAGE_TAG:-latest}</code> utilise <code>latest</code> si <code>IMAGE_TAG</code> est absent ou vide.</li>
+  </ul>
+  <pre>services:             # niveau 1
+  backend:            # appartient à services
+    ports:            # appartient à backend
+      - "5000:5000"   # élément de la liste ports</pre>
+
+  <h2>6. Ports et réseau</h2>
+  <pre>ports:
+  - "5000:5000"
+#    machine:conteneur</pre>
+  <table><tr><th>Déclaration</th><th>Résultat</th></tr>
+    <tr><td><code>"5000:5000"</code></td><td><code>http://localhost:5000</code> est transmis au port 5000 du backend.</td></tr>
+    <tr><td><code>"8080:80"</code></td><td><code>http://localhost:8080</code> est transmis au port 80 de Nginx.</td></tr>
+    <tr><td><code>http://backend:5000</code></td><td>Adresse interne utilisable uniquement entre les conteneurs du réseau Compose.</td></tr>
+  </table>
+  <div class="box">Dans un conteneur, <code>localhost</code> désigne ce conteneur lui-même. Pour joindre MySQL installé sur Windows, utiliser généralement <code>host.docker.internal</code>.</div>
+
+  <h2>7. Variables et fichier .env</h2>
+  <pre>DOCKERHUB_USERNAME=mon-utilisateur
+IMAGE_TAG=latest
+DB_CONNECTION=Server=host.docker.internal;Port=3306;Database=bankaccount;User=user;Password=secret
+JWT_KEY=une-cle-secrete-d-au-moins-32-caracteres
+JWT_ISSUER=BankAccountServices
+JWT_AUDIENCE=BankAccountFront
+S3_BUCKET_NAME=lambdacomp
+S3_REGION=us-east-1</pre>
+  <p>Le fichier <code>.env</code> se place à côté de <code>compose.yaml</code> et ne doit pas être envoyé sur Git. Dans ASP.NET Core, le double underscore représente une section : <code>Jwt__Key</code> correspond à <code>Jwt:Key</code> dans la configuration JSON.</p>
+  <div class="warn box">Ne jamais publier de vrais mots de passe, clés JWT ou clés cloud dans Docker Hub, Git ou une capture d’écran.</div>
+
+  <h2>8. Commandes essentielles</h2>
+  <p>Exécuter les commandes depuis le dossier contenant <code>compose.yaml</code> :</p>
+  <pre>cd C:\Users\ihebb\source\repos\BankAccountFront</pre>
+  <table><tr><th>Commande</th><th>Action</th></tr>
+    <tr><td><code>docker compose config</code></td><td>Valide et affiche la configuration finale.</td></tr>
+    <tr><td><code>docker compose build</code></td><td>Construit toutes les images.</td></tr>
+    <tr><td><code>docker compose build --no-cache</code></td><td>Reconstruit sans cache.</td></tr>
+    <tr><td><code>docker compose up</code></td><td>Crée et lance, avec les logs au premier plan.</td></tr>
+    <tr><td><code>docker compose up -d</code></td><td>Lance en arrière-plan.</td></tr>
+    <tr><td><code>docker compose up -d --build</code></td><td>Reconstruit puis lance.</td></tr>
+    <tr><td><code>docker compose up -d --no-build</code></td><td>Lance les images existantes sans construire.</td></tr>
+    <tr><td><code>docker compose ps</code></td><td>Affiche l’état des conteneurs du projet.</td></tr>
+    <tr><td><code>docker compose logs -f</code></td><td>Suit tous les logs en direct.</td></tr>
+    <tr><td><code>docker compose logs -f backend</code></td><td>Suit seulement les logs backend.</td></tr>
+    <tr><td><code>docker compose restart backend</code></td><td>Redémarre un service.</td></tr>
+    <tr><td><code>docker compose stop</code></td><td>Arrête sans supprimer.</td></tr>
+    <tr><td><code>docker compose down</code></td><td>Arrête et supprime les conteneurs et le réseau Compose.</td></tr>
+  </table>
+
+  <h2>9. Construire et publier sur Docker Hub</h2>
+  <pre>docker login
+docker compose build
+docker compose push</pre>
+  <p>Avec les noms configurés dans <code>image</code>, Compose publie :</p>
+  <pre>mon-utilisateur/bankaccount-services:latest
+mon-utilisateur/bankaccount-front:latest</pre>
+  <p>Sur une autre machine :</p>
+  <pre>docker login
+docker compose pull
+docker compose up -d --no-build</pre>
+
+  <h2>10. Développement, production et Swagger</h2>
+  <p>Le backend active Swagger uniquement si son code contient la condition suivante et que l’environnement vaut <code>Development</code> :</p>
+  <pre>if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}</pre>
+  <p>Pour le développement local :</p>
+  <pre>ASPNETCORE_ENVIRONMENT: Development
+# Swagger : http://localhost:5000/swagger/index.html</pre>
+  <p>Pour la production :</p>
+  <pre>ASPNETCORE_ENVIRONMENT: Production</pre>
+  <p>Swagger reste alors désactivé, mais la route de santé reste disponible sur <code>http://localhost:5000/health</code>.</p>
+
+  <h2>11. Dépannage rapide</h2>
+  <table><tr><th>Problème</th><th>Cause / vérification</th></tr>
+    <tr><td><code>Missing Jwt:Key</code></td><td><code>.env</code> absent, mal nommé ou <code>JWT_KEY</code> vide. Recréer avec <code>docker compose up -d --force-recreate</code>.</td></tr>
+    <tr><td>Swagger retourne 404</td><td>Le backend est en <code>Production</code>. Passer temporairement en <code>Development</code>.</td></tr>
+    <tr><td>Frontend ne joint pas l’API</td><td>Vérifier que le nom dans <code>proxy_pass</code> correspond exactement au nom du service.</td></tr>
+    <tr><td>Connexion MySQL refusée</td><td>Ne pas utiliser <code>localhost</code> pour MySQL sur Windows ; essayer <code>host.docker.internal</code> et vérifier le port.</td></tr>
+    <tr><td>Port déjà utilisé</td><td>Changer le port machine, par exemple <code>"5001:5000"</code>.</td></tr>
+    <tr><td>Ancienne configuration conservée</td><td><code>docker compose down</code>, puis <code>docker compose up -d --build --force-recreate</code>.</td></tr>
+  </table>
+  <pre>docker compose config
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f frontend</pre>
+
+  <h2>12. Séquence recommandée</h2>
+  <pre># 1. Vérifier .env et la syntaxe
+docker compose config
+
+# 2. Construire et lancer
+docker compose up -d --build
+
+# 3. Contrôler
+docker compose ps
+docker compose logs -f
+
+# 4. Tester
+http://localhost:8080
+http://localhost:5000/health
+http://localhost:5000/swagger/index.html   # Development uniquement
+
+# 5. Publier
+docker login
+docker compose push
+
+# 6. Arrêter
+docker compose down</pre>
+  <p class="small">Document préparé pour le projet BankAccount — août 2026.</p>
+</body>
+</html>

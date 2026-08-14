@@ -1,0 +1,62 @@
+name: Deploy Angular Front to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: bankaccount-front
+  REGISTRY: docker.io
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
+
+      - name: Load image into Docker Desktop
+        run: |
+          docker save ${{ env.IMAGE_NAME }}:${{ github.sha }} | docker load
+
+      - name: Update deployment image tag
+        run: |
+          sed -i "s|image: ${{ env.IMAGE_NAME }}:.*|image: ${{ env.IMAGE_NAME }}:${{ github.sha }}|g" front-deployment.yaml
+          echo "Updated image tag in front-deployment.yaml:"
+          grep "image:" front-deployment.yaml
+
+      - name: Commit updated deployment file (GitOps)
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action [CI/CD]"
+          git add front-deployment.yaml
+          git commit -m "chore: Deploy bankaccount-front:${{ github.sha }}" || echo "No changes to commit"
+          git push origin ${{ github.ref }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Note: This assumes kubectl is configured and kubeconfig is available in CI/CD environment
+          # For Docker Desktop, the kubeconfig should be at ~/.kube/config
+          kubectl apply -f front-deployment.yaml
+          kubectl rollout status deployment/bankaccount-kube-deployment-front -n default
+
+      - name: Get service info
+        run: |
+          echo "Service deployed at:"
+          kubectl get svc bankaccount-front-service -o wide
+          kubectl get pods -l app=bankaccount
