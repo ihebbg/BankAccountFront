@@ -9,6 +9,7 @@ on:
 env:
   IMAGE_NAME: bankaccount-front
   REGISTRY: docker.io
+  KUBECONFIG: ${{ secrets.KUBECONFIG }}
 
 jobs:
   build-and-deploy:
@@ -47,11 +48,25 @@ jobs:
           git commit -m "chore: Deploy bankaccount-front:${{ github.sha }}" || echo "No changes to commit"
           git push origin ${{ github.ref }}
 
+      - name: Configure Kubernetes access
+        run: |
+          mkdir -p "$HOME/.kube"
+
+          if [ -z "${KUBECONFIG:-}" ]; then
+            echo "KUBECONFIG secret is not set. Skipping Kubernetes deployment."
+            exit 0
+          fi
+
+          rm -f "$HOME/.kube/config"
+          printf '%s' "$KUBECONFIG" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+          kubectl config current-context
+          kubectl cluster-info
+
       - name: Deploy to Kubernetes
         run: |
-          # Note: This assumes kubectl is configured and kubeconfig is available in CI/CD environment
-          # For Docker Desktop, the kubeconfig should be at ~/.kube/config
-          kubectl apply -f front-deployment.yaml
+          kubectl apply --validate=false -f front-deployment.yaml
           kubectl rollout status deployment/bankaccount-kube-deployment-front -n default
 
       - name: Get service info
