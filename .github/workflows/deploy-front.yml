@@ -18,7 +18,6 @@ env:
   DEPLOYMENT: bankaccount-kube-deployment-front
   SERVICE: bankaccount-front-service
   MANIFEST: front-deployment.yaml
-  KUBECONFIG: ${{ secrets.KUBECONFIG }}
 
 jobs:
   build-and-deploy:
@@ -60,21 +59,13 @@ jobs:
             throw "Le contexte Kubernetes doit être 'docker-desktop'; actuel : $context"
           }
 
-      - name: Validate kubeconfig secret
-        if: ${{ env.KUBECONFIG == '' }}
-        shell: powershell
-        run: |
-          Write-Host "KUBECONFIG is empty. Skipping Kubernetes deployment."
-
       - name: Build image
-        if: ${{ env.KUBECONFIG != '' }}
         shell: powershell
         run: |
           $image = "$env:IMAGE_NAME`:$env:GITHUB_SHA"
-          docker build --tag $image .
+          docker build --tag $image --tag "$env:IMAGE_NAME:latest" .
 
       - name: Deploy image
-        if: ${{ env.KUBECONFIG != '' }}
         shell: powershell
         run: |
           $image = "$env:IMAGE_NAME`:$env:GITHUB_SHA"
@@ -87,10 +78,10 @@ jobs:
 
           Set-Content -Path $env:MANIFEST -Value $updatedManifest -NoNewline
           kubectl apply -f $env:MANIFEST
+          kubectl rollout restart "deployment/$env:DEPLOYMENT"
           kubectl rollout status "deployment/$env:DEPLOYMENT" --timeout=180s
 
       - name: Show deployed resources
-        if: ${{ env.KUBECONFIG != '' }}
         shell: powershell
         run: |
           kubectl get pods -l app=bankaccount
